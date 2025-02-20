@@ -1,0 +1,1 @@
+# inertia-vite-plugin
