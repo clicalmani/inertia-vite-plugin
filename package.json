@@ -1,0 +1,24 @@
+{
+  "name": "tonka-vite-plugin",
+  "version": "1.0.0",
+  "description": "Tonka vite plugin for Inertia",
+  "main": "index.js",
+  "types": "./lib/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/clicalmani/inertia-vite-plugin.git"
+  },
+  "keywords": [
+    "Inertia",
+    "vite"
+  ],
+  "author": "@clicalmani",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/clicalmani/inertia-vite-plugin/issues"
+  },
+  "homepage": "https://github.com/clicalmani/inertia-vite-plugin#readme"
+}
