@@ -1,7 +1,8 @@
+import { PluginOption } from "vite";
+
 /**
  * Do an index transform
  * 
- * @param string source
- * @return Promise<string>
+ * @return PluginOption
  */
-export default () => Promise<string>
+export default function () : PluginOption
