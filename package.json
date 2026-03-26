@@ -1,9 +1,8 @@
 {
   "name": "tonka-vite-plugin",
-  "version": "1.11.0",
-  "description": "Tonka vite plugin for Inertia",
-  "main": "./bin/index.js",
-  "types": "./lib/index.d.ts",
+  "version": "1.21.0",
+  "description": "A Vite plugin for Inertia.js that provides automatic page imports and enhanced development experience.",
+  "main": "index.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
