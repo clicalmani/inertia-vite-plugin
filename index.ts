@@ -60,6 +60,9 @@ export default function tonkaPlugin(options: TonkaPluginOptions = {}): Plugin {
           
           // Source maps: enabled in dev, disabled in prod (optional optimization)
           sourcemap: command === 'serve',
+
+          // Disable Copy the public directory to outDir on write.
+          copyPublicDir: false,
         },
 
         // 5. Resolve Aliases

@@ -14,10 +14,9 @@ This plugin automates the configuration of Vite for applications using **Inertia
 
 ## 📦 Installation
 
-Since this is a local plugin specific to your Tonka setup, copy the plugin file into your project root.
-
-1.  Create a file named `tonka-vite-plugin.ts` (or `.js`) in your project root.
-2.  Paste the code provided in the documentation into this file.
+```bash
+npm i tonka-vite-plugin
+```
 
 ## 🚀 Quick Start
 
@@ -26,7 +25,7 @@ Import the plugin into your `vite.config.ts` to activate it.
 ```typescript
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import tonka from './tonka-vite-plugin';
+import tonka from 'tonka-vite-plugin';
 
 export default defineConfig({
   plugins: [
@@ -68,14 +67,14 @@ When you run `npm run build`, the plugin automatically configures Rollup (the bu
 If you provide an `ssr` entry point, the plugin configures Vite to perform a second build specifically for the server. This allows your backend (Tonka) to render the initial page state on the server for faster load times and SEO.
 
 ### 3. Integration with Backend
-The plugin prepares the assets, but the **injection** of the `<script>` tags into the HTML is handled by your backend (Tonka) via the `@vite` Blade directive. This ensures that the correct script source is used:
+The plugin prepares the assets, but the **injection** of the `<script>` tags into the HTML is handled by your backend (Tonka) via the `@vite` directive. This ensures that the correct script source is used:
 *   **Dev**: Points to `http://localhost:5173/@vite/client` (for HMR).
 *   **Prod**: Points to `/build/assets/xxxxx.js` (using the manifest).
 
 ## 🛠️ Development vs Production
 
 **In Development:**
-The plugin ensures the dev server runs on port 5173 and resolves aliases correctly. It relies on the backend to proxy requests or inject the client script.
+The plugin ensures the dev server runs on port `5173` (or the one you specify for vite) and resolves aliases correctly. It relies on the backend to proxy requests or inject the client script.
 
 **In Production:**
 The plugin is essential to correctly generate the `manifest.json`. Without this plugin generating the manifest, your backend would fail to locate the compiled `.js` files after a build.

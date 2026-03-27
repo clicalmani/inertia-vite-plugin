@@ -1,6 +1,6 @@
 {
   "name": "tonka-vite-plugin",
-  "version": "1.30.0",
+  "version": "1.32.0",
   "description": "A Vite plugin for Inertia.js that provides automatic page imports and enhanced development experience.",
   "main": "./dist/index.js",       
   "types": "./dist/index.d.ts",     
