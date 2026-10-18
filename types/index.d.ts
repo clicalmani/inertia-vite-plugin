@@ -43,3 +43,9 @@ export interface TonkaPluginOptions {
    */
   manifest?: boolean;
 }
+
+export type resolvePageComponent = (
+  name: string,
+  pages: Record<string, string>,
+  extensions?: string[],
+) => string;

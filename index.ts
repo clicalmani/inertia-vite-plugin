@@ -1,104 +1,161 @@
-import type { Plugin, UserConfig } from 'vite';
-import { fileURLToPath, URL } from 'node:url';
-import path from 'path';
-import { TonkaPluginOptions } from '../types';
+import type { Plugin, UserConfig, ViteDevServer } from 'vite';
+import fs from 'node:fs';
+import path from 'node:path';
+import { TonkaPluginOptions } from './types';
 
 /**
  * Tonka Vite Plugin
- * 
+ *
  * A Vite plugin specifically designed for the Tonka Framework.
- * It automates the configuration for Inertia.js, SSR, and asset paths.
- * 
- * @param options - Configuration options for the plugin
- * @returns A Vite plugin object
+ * It automates the configuration for Inertia.js, SSR, and asset paths,
+ * and wires up HMR between the Vite dev server and the PHP-side
+ * `@vite(...)` / `@reactRefresh` template directives via a "hot" file.
  */
 export default function tonkaPlugin(options: TonkaPluginOptions = {}): Plugin {
-  // Determine the base directory of the project
   const root = process.cwd();
+  const publicDir = options.publicDirectory
+    ? path.resolve(root, options.publicDirectory)
+    : path.resolve(root, 'public');
+  const hotFile = path.resolve(publicDir, 'hot');
+  
+  // Normalize the `refresh` option into a list of glob patterns to watch.
+  // `refresh: true`  -> sensible defaults (server-side views/routes)
+  // `refresh: 'x'`   -> single glob
+  // `refresh: ['a','b']` -> explicit globs
+  // `refresh: false` -> disabled (default)
+  const refreshPaths: string[] =
+    options.refresh === true
+      ? ['resources/js/**']
+      : Array.isArray(options.refresh)
+      ? options.refresh
+      : typeof options.refresh === 'string'
+      ? [options.refresh]
+      : [];
+
+  let viteDevServerUrl: string;
+  let resolvedConfig: UserConfig;
 
   return {
     name: 'tonka-vite-plugin',
 
-    /**
-     * The `config` hook is called before the user config is resolved.
-     * We use it to inject default settings and handle the Tonka-specific structure.
-     */
-    config: (userConfig: UserConfig, { command }) => {
-      // 1. Handle Inputs
-      // If the user doesn't provide inputs, we assume the standard structure.
-      // Note: We cast to 'any' here to satisfy Rollup's strict typing for input.
+    // Needed so Vite knows this plugin cares about both build and serve.
+    config(userConfig: UserConfig, { command, mode }) {
       const input: any = options.input || {
-        'resources/css/app.css': undefined, // CSS entry
-        'resources/js/app.tsx': undefined,   // Main JS entry
+        app: 'resources/css/app.css',
+        main: 'resources/js/app.tsx',
       };
 
-      // 2. Handle Output Directory
-      // Default to 'public/build' if not specified
       const outDir = options.outDir || path.resolve(root, 'public/build');
-
-      // 3. Handle Manifest
-      // Ensure manifest is generated unless explicitly disabled
       const manifest = options.manifest !== false ? 'manifest.json' : false;
 
-      // 4. Handle SSR
-      // If ssr is false, we ensure we don't set the ssr config.
-      const ssrBuild = options.ssr ? options.ssr : false;
+      resolvedConfig = {
+        base:
+          command === 'build'
+            ? (options.buildBase ?? '/build/')
+            : '',
 
-      return {
         build: {
-          outDir: outDir,
-          manifest: manifest,
+          outDir,
+          manifest,
           assetsDir: options.assetsDir || 'assets',
-          
-          // Rollup options
-          rollupOptions: {
-            input: input,
-          },
-          
-          // Server-Side Rendering configuration
-          ssr: ssrBuild,
-          
-          // Source maps: enabled in dev, disabled in prod (optional optimization)
-          sourcemap: command === 'serve',
-
-          // Disable Copy the public directory to outDir on write.
+          rollupOptions: { input },
+          ssr: options.ssr || false,
+          sourcemap: command === 'serve' ? true : (options.sourcemap ?? false),
           copyPublicDir: false,
+          // Avoid the dev server writing into outDir while `vite build --watch`
+          // is running alongside `vite dev`, which is a common source of
+          // rebuild loops when both processes touch public/build.
+          emptyOutDir: command === 'build',
         },
 
-        // 5. Resolve Aliases
         resolve: {
-          // Merge user aliases with defaults
-          alias: options.alias || {
-            // Default alias: '@' points to the root of the project
-            // You can also point it to 'resources' or 'public' based on your preference.
-            '@': path.resolve(root, '.'),
+          alias: {
+            '@': path.resolve(root, 'resources/js'),
+            ...(options.alias || {}),
           },
         },
 
-        // 6. Optimize dependencies
-        // Pre-bundle common dependencies to speed up dev server start
         optimizeDeps: {
-          include: ['react', 'react-dom', '@inertiajs/react', 'axios'],
+          include: ['react', 'react-dom', '@inertiajs/react'],
           exclude: [],
         },
+
+        server: {
+          // Let the PHP-side template know the real origin to fetch
+          // /@vite/client and entry modules from, instead of guessing.
+          origin: userConfig.server?.origin,
+          cors: true,
+          // Never let Tailwind / the module graph watch what Vite itself
+          // writes out — this is the classic source of an infinite
+          // regenerate -> reload -> regenerate loop.
+          watch: {
+            ignored: [
+              '**/public/build/**',
+              '**/public/hot',
+              '**/node_modules/**',
+              '**/vendor/**',
+              ...['ap', 'routes', 'bootstrap', 'database', 'config', 'test'].map((dir) =>
+                path.resolve(root, dir) + '/**'
+              ),
+            ],
+          },
+        },
       };
+
+      return resolvedConfig;
     },
 
-    /**
-     * The `transformIndexHtml` hook allows modifying the HTML index file.
-     * This can be used to inject the @vite/client script for HMR if needed.
-     */
-    transformIndexHtml(html) {
-      // If refresh is enabled, we could inject the HMR client here.
-      // However, in a typical Inertia setup (like Tonka), this is often
-      // handled by the server-side Blade/PHP template (@vite directive).
-      // We leave this placeholder for future enhancements.
-      if (options.refresh) {
-        // Implementation note: Injecting @vite/client usually requires
-        // knowing the exact module path, which varies. 
-        // For now, we trust the server-side directive.
+    configureServer(server: ViteDevServer) {
+      const cleanupHotFile = () => {
+        if (fs.existsSync(hotFile)) fs.rmSync(hotFile);
+      };
+
+      // Always start clean.
+      cleanupHotFile();
+
+      server.httpServer?.once('listening', () => {
+        const address = server.httpServer?.address();
+        const protocol = server.config.server.https ? 'https' : 'http';
+
+        if (address && typeof address === 'object') {
+          viteDevServerUrl =
+            resolvedConfig.server?.origin ??
+            `${protocol}://${address.address === '::' ? 'localhost' : address.address}:${address.port}`;
+
+          fs.mkdirSync(publicDir, { recursive: true });
+          fs.writeFileSync(hotFile, viteDevServerUrl);
+        }
+      });
+
+      // Make sure we don't leave a stale `hot` file behind if the dev
+      // server crashes or is killed — a stale file is exactly what makes
+      // the backend think Vite is running when it isn't, causing it to
+      // request assets that 404 and, depending on the framework, retry
+      // in a loop.
+      const exitHandler = () => cleanupHotFile();
+      process.on('exit', exitHandler);
+      process.on('SIGINT', () => process.exit());
+      process.on('SIGTERM', () => process.exit());
+      server.httpServer?.once('close', cleanupHotFile);
+
+      // Wire up `refresh`: watch server-rendered files (views, routes, ...)
+      // and ask the browser to do a *full* reload when they change, since
+      // Vite's module graph has no way to HMR server-rendered templates.
+      if (refreshPaths.length > 0) {
+        const watcher = server.watcher.add(refreshPaths);
+
+        watcher.on('change', (file) => {
+          server.ws.send({ type: 'full-reload', path: '*' });
+        });
       }
-      return html;
+    },
+
+    // Expose the hot dev-server URL / status to any code that needs to
+    // build the correct asset tags server-side (e.g. a small PHP/JS bridge
+    // reading this via a generated config file), instead of leaving the
+    // `refresh` branch here silently doing nothing.
+    transformIndexHtml() {
+      return undefined;
     },
   };
 }
