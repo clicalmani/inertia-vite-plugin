@@ -94,7 +94,7 @@ export default function tonkaPlugin(options: TonkaPluginOptions = {}): Plugin {
               '**/public/hot',
               '**/node_modules/**',
               '**/vendor/**',
-              ...['ap', 'routes', 'bootstrap', 'database', 'config', 'test'].map((dir) =>
+              ...['app', 'routes', 'bootstrap', 'database', 'config', 'test'].map((dir) =>
                 path.resolve(root, dir) + '/**'
               ),
             ],
